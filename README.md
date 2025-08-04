@@ -21,7 +21,7 @@ AutoClaude is a comprehensive framework that transforms Claude Code into a fully
 Leverages Claude Code's hook system to intercept and enhance every stage of the development process.
 
 ### 2. **Sandbox Environment**
-Docker-based isolation ensures safe execution of generated code without affecting the host system.
+Container-based isolation (Docker or Podman) ensures safe execution of generated code without affecting the host system.
 
 ### 3. **Context Management**
 Advanced compression strategies enable long-running sessions with up to 32x context reduction.
@@ -39,7 +39,7 @@ Maintains its own CLAUDE.md with architectural decisions, progress tracking, and
 git clone https://github.com/Jobikinobi/hole-foundation-autoclaude.git
 cd hole-foundation-autoclaude
 
-# Install dependencies
+# Install dependencies (supports Docker or Podman)
 ./scripts/setup.sh
 
 # Configure Claude Code hooks
@@ -48,6 +48,10 @@ claude --config-dir .claude-code/config
 # Launch autonomous mode
 ./scripts/launch-autonomous.sh "Build a REST API for task management"
 ```
+
+### Container Runtime
+
+AutoClaude automatically detects and uses either Docker or Podman. For Podman-specific configuration, see [docs/PODMAN.md](docs/PODMAN.md).
 
 ## Architecture
 
@@ -60,7 +64,8 @@ hole-foundation-autoclaude/
 │   └── pre-compact/      # Context compression triggers
 ├── docker/               # Sandbox environment configs
 │   ├── Dockerfile        # Base development image
-│   └── compose.yml       # Multi-container setup
+│   ├── compose.yml       # Docker/Podman compose setup
+│   └── podman-compose.yml # Podman-specific compose
 ├── templates/            # Project templates
 │   ├── CLAUDE.md         # Auto-generated memory template
 │   └── project-types/    # Language-specific templates
@@ -120,11 +125,12 @@ export AUTOCLAUDE_AUTO_COMMIT=true
 
 ## Safety Features
 
-- **Sandboxed Execution**: All code runs in isolated Docker containers
+- **Sandboxed Execution**: All code runs in isolated containers (Docker/Podman)
 - **Hook Validation**: Pre-execution checks for dangerous commands
 - **Resource Limits**: CPU, memory, and disk usage constraints
 - **Network Isolation**: Limited to documentation and GitHub access
 - **Audit Logging**: Complete activity tracking in `.claude-code/logs`
+- **Rootless Support**: Enhanced security with Podman's rootless containers
 
 ## Contributing
 

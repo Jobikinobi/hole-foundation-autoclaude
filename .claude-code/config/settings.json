@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "sessionStart": {
+      "command": "./hooks/session-start/init-sandbox.sh"
+    },
+    "preToolUse": [
+      {
+        "command": "./hooks/pre-tool-use/validate-safety.sh"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "./hooks/post-tool-use/track-progress.sh"
+      }
+    ],
+    "preCompact": {
+      "command": "./hooks/pre-compact/prepare-handoff.sh"
+    }
+  },
+  "memory": {
+    "autoSave": true,
+    "compressionThreshold": 0.75,
+    "location": "./CLAUDE.md"
+  },
+  "tools": {
+    "bash": {
+      "requireApproval": false,
+      "sandboxed": true
+    },
+    "write": {
+      "requireApproval": false
+    },
+    "edit": {
+      "requireApproval": false
+    }
+  }
+}

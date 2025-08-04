@@ -17,14 +17,23 @@ if ! command -v claude &> /dev/null; then
     exit 1
 fi
 
-# Check for Docker (optional but recommended)
+# Check for container runtime (Docker or Podman)
+CONTAINER_RUNTIME=""
 if command -v docker &> /dev/null; then
     echo "✅ Docker found"
-    DOCKER_AVAILABLE=true
+    CONTAINER_RUNTIME="docker"
+elif command -v podman &> /dev/null; then
+    echo "✅ Podman found"
+    CONTAINER_RUNTIME="podman"
+    # Create docker alias for podman if it doesn't exist
+    if ! command -v docker &> /dev/null; then
+        echo "   Creating docker -> podman alias for compatibility"
+    fi
 else
-    echo "⚠️  Docker not found. Sandbox features will be limited."
+    echo "⚠️  No container runtime found. Sandbox features will be limited."
     echo "   Install Docker from: https://docs.docker.com/get-docker/"
-    DOCKER_AVAILABLE=false
+    echo "   Or install Podman from: https://podman.io/getting-started/installation"
+    CONTAINER_RUNTIME=""
 fi
 
 # Check for Git
@@ -95,13 +104,25 @@ cat > .claude-code/config/settings.json <<'EOF'
 }
 EOF
 
-# Build Docker image if available
-if [ "$DOCKER_AVAILABLE" = true ]; then
-    echo -e "\nBuilding Docker sandbox image..."
+# Build container image if runtime available
+if [ -n "$CONTAINER_RUNTIME" ]; then
+    echo -e "\nBuilding container sandbox image..."
     cd docker
-    docker compose build --quiet
+    
+    if [ "$CONTAINER_RUNTIME" = "podman" ]; then
+        # Use podman-compose if available, otherwise use podman directly
+        if command -v podman-compose &> /dev/null; then
+            podman-compose build --quiet
+        else
+            echo "Building with podman build (podman-compose not found)..."
+            podman build -t autoclaude/sandbox:latest -f Dockerfile .
+        fi
+    else
+        docker compose build --quiet
+    fi
+    
     cd ..
-    echo "✅ Docker sandbox ready"
+    echo "✅ Container sandbox ready ($CONTAINER_RUNTIME)"
 fi
 
 # Initialize git repository if not already initialized
@@ -154,12 +175,18 @@ else
     exit 1
 fi
 
-# Test Docker sandbox (if available)
+# Test container sandbox (if available)
 if command -v docker &> /dev/null; then
-    if docker run --rm autoclaude/sandbox:latest echo "Sandbox works"; then
-        echo "✅ Docker sandbox functional"
+    if docker run --rm autoclaude/sandbox:latest echo "Sandbox works" 2>/dev/null; then
+        echo "✅ Container sandbox functional (Docker)"
     else
-        echo "❌ Docker sandbox failed"
+        echo "❌ Container sandbox failed (Docker)"
+    fi
+elif command -v podman &> /dev/null; then
+    if podman run --rm autoclaude/sandbox:latest echo "Sandbox works" 2>/dev/null; then
+        echo "✅ Container sandbox functional (Podman)"
+    else
+        echo "❌ Container sandbox failed (Podman)"
     fi
 fi
 

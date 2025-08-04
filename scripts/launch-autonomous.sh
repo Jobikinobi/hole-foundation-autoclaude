@@ -110,20 +110,52 @@ AUTONOMOUS_PROMPT="${AUTONOMOUS_PROMPT//PROJECT_DESCRIPTION_PLACEHOLDER/$PROJECT
 echo "Launching Claude Code in autonomous mode..."
 echo ""
 
-# Check if we should use Docker sandbox
-if [ "${AUTOCLAUDE_USE_SANDBOX:-true}" = "true" ] && command -v docker &> /dev/null; then
-    echo "🐳 Using Docker sandbox for execution"
+# Check if we should use container sandbox
+CONTAINER_RUNTIME=""
+if [ "${AUTOCLAUDE_USE_SANDBOX:-true}" = "true" ]; then
+    if command -v docker &> /dev/null; then
+        CONTAINER_RUNTIME="docker"
+        echo "🐳 Using Docker sandbox for execution"
+    elif command -v podman &> /dev/null; then
+        CONTAINER_RUNTIME="podman"
+        echo "🦭 Using Podman sandbox for execution"
+    fi
     
-    # Start sandbox container
-    cd docker
-    docker compose up -d autoclaude-sandbox
-    cd ..
-    
-    # Wait for container to be ready
-    sleep 2
-    
-    # Execute Claude Code with sandbox context
-    SANDBOX_CONTEXT=" Use the Docker sandbox container 'autoclaude-dev' for any code execution or testing."
+    if [ -n "$CONTAINER_RUNTIME" ]; then
+        # Start sandbox container
+        cd docker
+        
+        if [ "$CONTAINER_RUNTIME" = "podman" ]; then
+            # Use podman-compose if available
+            if command -v podman-compose &> /dev/null; then
+                podman-compose up -d autoclaude-sandbox
+            else
+                # Run with podman directly
+                podman run -d \
+                    --name autoclaude-dev \
+                    --hostname autoclaude-sandbox \
+                    -v "$(pwd)/../:/home/claude/autoclaude:ro" \
+                    -v "autoclaude-workspace:/home/claude/workspace" \
+                    -e "AUTOCLAUDE_SANDBOX=true" \
+                    -e "SESSION_ID=$SESSION_ID" \
+                    --rm \
+                    autoclaude/sandbox:latest \
+                    tail -f /dev/null
+            fi
+        else
+            docker compose up -d autoclaude-sandbox
+        fi
+        
+        cd ..
+        
+        # Wait for container to be ready
+        sleep 2
+        
+        # Execute Claude Code with sandbox context
+        SANDBOX_CONTEXT=" Use the container sandbox 'autoclaude-dev' for any code execution or testing."
+    else
+        SANDBOX_CONTEXT=""
+    fi
 else
     SANDBOX_CONTEXT=""
 fi
@@ -162,11 +194,22 @@ echo "✅ Autonomous session completed"
 echo "Session ID: $SESSION_ID"
 echo "Log file: .claude-code/logs/session-$SESSION_ID.log"
 
-# Clean up Docker sandbox if used
-if [ "${AUTOCLAUDE_USE_SANDBOX:-true}" = "true" ] && command -v docker &> /dev/null; then
-    echo "Cleaning up Docker sandbox..."
+# Clean up container sandbox if used
+if [ "${AUTOCLAUDE_USE_SANDBOX:-true}" = "true" ] && [ -n "$CONTAINER_RUNTIME" ]; then
+    echo "Cleaning up container sandbox..."
     cd docker
-    docker compose down
+    
+    if [ "$CONTAINER_RUNTIME" = "podman" ]; then
+        if command -v podman-compose &> /dev/null; then
+            podman-compose down
+        else
+            podman stop autoclaude-dev 2>/dev/null || true
+            podman rm autoclaude-dev 2>/dev/null || true
+        fi
+    else
+        docker compose down
+    fi
+    
     cd ..
 fi
 
