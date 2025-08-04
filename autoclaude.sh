@@ -50,6 +50,11 @@ AUTOCLAUDE_USE_SANDBOX="true"
 EOF
         source "$AUTOCLAUDE_CONFIG"
     fi
+    
+    # Export runtime preference if not auto
+    if [ "${AUTOCLAUDE_DEFAULT_RUNTIME}" != "auto" ]; then
+        export AUTOCLAUDE_CONTAINER_RUNTIME="${AUTOCLAUDE_DEFAULT_RUNTIME}"
+    fi
 }
 
 # Save configuration
@@ -203,12 +208,33 @@ new_project_menu() {
         mkdir -p "$project_path"
     fi
     
-    # Copy AutoClaude files
+    # Copy AutoClaude files from installation directory
     echo -e "${YELLOW}Setting up AutoClaude in project...${NC}"
-    cp -r hooks "$project_path/"
-    cp -r docker "$project_path/"
-    cp -r templates "$project_path/"
-    cp -r scripts "$project_path/"
+    
+    # Get the AutoClaude installation directory
+    AUTOCLAUDE_INSTALL_DIR=""
+    if [ -n "${AUTOCLAUDE_HOME:-}" ]; then
+        AUTOCLAUDE_INSTALL_DIR="$AUTOCLAUDE_HOME"
+    elif [ -d "$(dirname "$0")/hooks" ]; then
+        AUTOCLAUDE_INSTALL_DIR="$(dirname "$0")"
+    else
+        # Try to find it from the wrapper
+        if [ -f "/usr/local/bin/autoclaude" ]; then
+            AUTOCLAUDE_INSTALL_DIR=$(grep "^AUTOCLAUDE_HOME=" /usr/local/bin/autoclaude | cut -d'"' -f2)
+        fi
+    fi
+    
+    if [ -z "$AUTOCLAUDE_INSTALL_DIR" ] || [ ! -d "$AUTOCLAUDE_INSTALL_DIR/hooks" ]; then
+        echo -e "${RED}Cannot find AutoClaude installation files${NC}"
+        echo "Please run from AutoClaude directory or set AUTOCLAUDE_HOME"
+        return
+    fi
+    
+    # Copy files from installation directory
+    cp -r "$AUTOCLAUDE_INSTALL_DIR/hooks" "$project_path/"
+    cp -r "$AUTOCLAUDE_INSTALL_DIR/docker" "$project_path/"
+    cp -r "$AUTOCLAUDE_INSTALL_DIR/templates" "$project_path/"
+    cp -r "$AUTOCLAUDE_INSTALL_DIR/scripts" "$project_path/"
     mkdir -p "$project_path/.claude-code"
     
     # Create project-specific CLAUDE.md
@@ -460,10 +486,14 @@ check_status() {
     fi
     
     # Check container runtime
-    if command -v docker &> /dev/null; then
-        echo -e "${GREEN}✅ Docker installed${NC}"
-    elif command -v podman &> /dev/null; then
-        echo -e "${GREEN}✅ Podman installed${NC}"
+    if command -v podman &> /dev/null; then
+        echo -e "${GREEN}✅ Podman installed (preferred)${NC}"
+    elif command -v docker &> /dev/null; then
+        if docker info >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ Docker installed and running${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Docker installed but daemon not running${NC}"
+        fi
     else
         echo -e "${RED}❌ No container runtime found${NC}"
     fi
@@ -528,9 +558,9 @@ configuration_menu() {
                 ;;
             2)
                 echo "Select container runtime:"
-                echo "1) Auto-detect"
-                echo "2) Docker"
-                echo "3) Podman"
+                echo "1) Auto-detect (Docker on macOS, Podman on Linux)"
+                echo "2) Always use Docker"
+                echo "3) Always use Podman"
                 read -p "Choice: " runtime_choice
                 case $runtime_choice in
                     1) AUTOCLAUDE_DEFAULT_RUNTIME="auto" ;;
@@ -538,6 +568,8 @@ configuration_menu() {
                     3) AUTOCLAUDE_DEFAULT_RUNTIME="podman" ;;
                 esac
                 save_config
+                # Export for immediate use
+                export AUTOCLAUDE_CONTAINER_RUNTIME="$AUTOCLAUDE_DEFAULT_RUNTIME"
                 ;;
             3)
                 if [ "$AUTOCLAUDE_AUTO_COMMIT" = "true" ]; then
@@ -698,12 +730,16 @@ container_menu() {
         echo ""
         
         local runtime=""
-        if command -v docker &> /dev/null; then
-            runtime="docker"
-        elif command -v podman &> /dev/null; then
+        if command -v podman &> /dev/null; then
             runtime="podman"
+        elif command -v docker &> /dev/null && docker info >/dev/null 2>&1; then
+            runtime="docker"
         else
-            echo -e "${RED}No container runtime found${NC}"
+            echo -e "${RED}No working container runtime found${NC}"
+            if command -v docker &> /dev/null; then
+                echo -e "${YELLOW}Docker is installed but daemon not running${NC}"
+                echo "Start Docker or install Podman"
+            fi
             read -p "Press Enter to continue..."
             return
         fi

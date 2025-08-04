@@ -42,19 +42,22 @@ if [ ! -f "CLAUDE.md" ]; then
 EOF
 fi
 
-# Check container runtime availability
+# Check container runtime availability (prefer Podman)
 CONTAINER_RUNTIME=""
-if command -v docker &> /dev/null; then
+if command -v podman &> /dev/null; then
+    CONTAINER_RUNTIME="podman"
+    echo "Podman detected. Sandbox environment available (preferred)."
+    # Podman doesn't need explicit network creation for default network
+elif command -v docker &> /dev/null && docker info >/dev/null 2>&1; then
     CONTAINER_RUNTIME="docker"
-    echo "Docker detected. Sandbox environment available."
+    echo "Docker detected and running. Sandbox environment available."
     # Ensure sandbox network exists
     docker network create autoclaude-sandbox 2>/dev/null || true
-elif command -v podman &> /dev/null; then
-    CONTAINER_RUNTIME="podman"
-    echo "Podman detected. Sandbox environment available."
-    # Podman doesn't need explicit network creation for default network
 else
-    echo "Warning: No container runtime found. Sandbox features will be limited."
+    echo "Warning: No working container runtime found. Sandbox features will be limited."
+    if command -v docker &> /dev/null; then
+        echo "Docker is installed but daemon not running. Start Docker or install Podman."
+    fi
 fi
 
 # Return success with context message

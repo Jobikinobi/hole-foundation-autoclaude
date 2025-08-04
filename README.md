@@ -137,15 +137,35 @@ Create `.claude-code/settings.json`:
 }
 ```
 
+### Authentication
+
+AutoClaude supports two authentication methods:
+
+#### Option 1: Claude Max (Recommended)
+If you have a Claude Max subscription, no API key is needed:
+```bash
+# Configure authentication
+autoclaude-manage-secrets setup
+# Select option 1 (Claude Max)
+
+# Make sure you're logged into Claude Code
+claude auth login
+```
+
+#### Option 2: API Key
+For users without Claude Max:
+```bash
+# Configure authentication
+autoclaude-manage-secrets setup
+# Select option 2 and enter your API key
+```
+
 ### Environment Variables
 
 ```bash
-# Required
-export GITHUB_TOKEN="your-github-token"
-export ANTHROPIC_API_KEY="your-api-key"
-
 # Optional
-export AUTOCLAUDE_SANDBOX_DIR="/path/to/sandbox"
+export GITHUB_TOKEN="your-github-token"  # For GitHub integration
+export AUTOCLAUDE_CONTAINER_RUNTIME=docker  # Force Docker over Podman
 export AUTOCLAUDE_MAX_CONTEXT_PERCENT=80
 export AUTOCLAUDE_AUTO_COMMIT=true
 ```

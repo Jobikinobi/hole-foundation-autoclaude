@@ -17,22 +17,25 @@ if ! command -v claude &> /dev/null; then
     exit 1
 fi
 
-# Check for container runtime (Docker or Podman)
+# Check for container runtime (prefer Podman over Docker)
 CONTAINER_RUNTIME=""
-if command -v docker &> /dev/null; then
-    echo "✅ Docker found"
-    CONTAINER_RUNTIME="docker"
-elif command -v podman &> /dev/null; then
-    echo "✅ Podman found"
+if command -v podman &> /dev/null; then
+    echo "✅ Podman found (preferred)"
     CONTAINER_RUNTIME="podman"
-    # Create docker alias for podman if it doesn't exist
-    if ! command -v docker &> /dev/null; then
-        echo "   Creating docker -> podman alias for compatibility"
+elif command -v docker &> /dev/null; then
+    # Check if Docker daemon is actually running
+    if docker info >/dev/null 2>&1; then
+        echo "✅ Docker found and running"
+        CONTAINER_RUNTIME="docker"
+    else
+        echo "⚠️  Docker found but daemon not running"
+        echo "   Start Docker or install Podman for container support"
+        CONTAINER_RUNTIME=""
     fi
 else
     echo "⚠️  No container runtime found. Sandbox features will be limited."
-    echo "   Install Docker from: https://docs.docker.com/get-docker/"
-    echo "   Or install Podman from: https://podman.io/getting-started/installation"
+    echo "   Install Podman (recommended) from: https://podman.io/getting-started/installation"
+    echo "   Or install Docker from: https://docs.docker.com/get-docker/"
     CONTAINER_RUNTIME=""
 fi
 
@@ -176,18 +179,20 @@ else
 fi
 
 # Test container sandbox (if available)
-if command -v docker &> /dev/null; then
-    if docker run --rm autoclaude/sandbox:latest echo "Sandbox works" 2>/dev/null; then
-        echo "✅ Container sandbox functional (Docker)"
-    else
-        echo "❌ Container sandbox failed (Docker)"
-    fi
-elif command -v podman &> /dev/null; then
+if command -v podman &> /dev/null; then
     if podman run --rm autoclaude/sandbox:latest echo "Sandbox works" 2>/dev/null; then
         echo "✅ Container sandbox functional (Podman)"
     else
         echo "❌ Container sandbox failed (Podman)"
     fi
+elif command -v docker &> /dev/null && docker info >/dev/null 2>&1; then
+    if docker run --rm autoclaude/sandbox:latest echo "Sandbox works" 2>/dev/null; then
+        echo "✅ Container sandbox functional (Docker)"
+    else
+        echo "❌ Container sandbox failed (Docker)"
+    fi
+else
+    echo "⚠️  No working container runtime available for testing"
 fi
 
 # Test Claude Code integration

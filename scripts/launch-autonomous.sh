@@ -20,15 +20,32 @@ echo "Project: $PROJECT_DESCRIPTION"
 echo "Session: $SESSION_ID"
 echo ""
 
-# Source environment variables if .env exists
-if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
+# Load authentication
+SECRETS_FILE="$HOME/.autoclaude/secrets"
+if [ -f "$SECRETS_FILE" ]; then
+    # Check auth method
+    if grep -q "AUTH_METHOD=claude_max" "$SECRETS_FILE"; then
+        echo "✅ Using Claude Max authentication"
+        # No API key needed!
+    elif grep -q "AUTH_METHOD=api_key" "$SECRETS_FILE"; then
+        # Load API key securely
+        source "$SECRETS_FILE"
+        export ANTHROPIC_API_KEY
+    fi
+else
+    echo "⚠️  No authentication configured"
+    echo ""
+    echo "Please run: autoclaude-manage-secrets setup"
+    echo ""
+    echo "Options:"
+    echo "1) Claude Max (recommended) - No API key needed"
+    echo "2) API Key - For non-Claude Max users"
+    exit 1
 fi
 
-# Verify required environment variables
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    echo "❌ ANTHROPIC_API_KEY not set. Please add it to .env file."
-    exit 1
+# Source project .env if exists (for other variables)
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | grep -v 'ANTHROPIC_API_KEY' | xargs)
 fi
 
 # Export session ID for hooks
@@ -113,12 +130,60 @@ echo ""
 # Check if we should use container sandbox
 CONTAINER_RUNTIME=""
 if [ "${AUTOCLAUDE_USE_SANDBOX:-true}" = "true" ]; then
-    if command -v docker &> /dev/null; then
-        CONTAINER_RUNTIME="docker"
-        echo "🐳 Using Docker sandbox for execution"
-    elif command -v podman &> /dev/null; then
-        CONTAINER_RUNTIME="podman"
-        echo "🦭 Using Podman sandbox for execution"
+    # Check for explicit runtime preference
+    if [ -n "${AUTOCLAUDE_CONTAINER_RUNTIME:-}" ]; then
+        case "${AUTOCLAUDE_CONTAINER_RUNTIME}" in
+            docker)
+                if command -v docker &> /dev/null && docker info >/dev/null 2>&1; then
+                    CONTAINER_RUNTIME="docker"
+                    echo "🐳 Using Docker sandbox (forced by configuration)"
+                else
+                    echo "❌ Docker requested but not available or not running"
+                    exit 1
+                fi
+                ;;
+            podman)
+                if command -v podman &> /dev/null; then
+                    CONTAINER_RUNTIME="podman"
+                    echo "🦭 Using Podman sandbox (forced by configuration)"
+                else
+                    echo "❌ Podman requested but not available"
+                    exit 1
+                fi
+                ;;
+            *)
+                echo "❌ Invalid AUTOCLAUDE_CONTAINER_RUNTIME: ${AUTOCLAUDE_CONTAINER_RUNTIME}"
+                echo "   Valid options: docker, podman"
+                exit 1
+                ;;
+        esac
+    else
+        # Auto-detect: Check Docker first on macOS for better compatibility
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # On macOS, prefer Docker if it's running
+            if command -v docker &> /dev/null && docker info >/dev/null 2>&1; then
+                CONTAINER_RUNTIME="docker"
+                echo "🐳 Using Docker sandbox for execution"
+            elif command -v podman &> /dev/null && podman machine list --format "{{.State}}" | grep -q "running"; then
+                CONTAINER_RUNTIME="podman"
+                echo "🦭 Using Podman sandbox for execution"
+            else
+                echo "⚠️  No working container runtime found. Continuing without sandbox."
+                CONTAINER_RUNTIME=""
+            fi
+        else
+            # On Linux, prefer Podman
+            if command -v podman &> /dev/null; then
+                CONTAINER_RUNTIME="podman"
+                echo "🦭 Using Podman sandbox for execution"
+            elif command -v docker &> /dev/null && docker info >/dev/null 2>&1; then
+                CONTAINER_RUNTIME="docker"
+                echo "🐳 Using Docker sandbox for execution"
+            else
+                echo "⚠️  No working container runtime found. Continuing without sandbox."
+                CONTAINER_RUNTIME=""
+            fi
+        fi
     fi
     
     if [ -n "$CONTAINER_RUNTIME" ]; then
