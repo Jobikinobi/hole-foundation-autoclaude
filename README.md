@@ -34,6 +34,20 @@ Maintains its own CLAUDE.md with architectural decisions, progress tracking, and
 
 ## Quick Start
 
+### Option 1: Interactive Menu (Recommended)
+
+```bash
+# Clone and install
+git clone https://github.com/Jobikinobi/hole-foundation-autoclaude.git
+cd hole-foundation-autoclaude
+./install.sh
+
+# Launch interactive menu
+autoclaude
+```
+
+### Option 2: Manual Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/Jobikinobi/hole-foundation-autoclaude.git
@@ -52,6 +66,19 @@ claude --config-dir .claude-code/config
 ### Container Runtime
 
 AutoClaude automatically detects and uses either Docker or Podman. For Podman-specific configuration, see [docs/PODMAN.md](docs/PODMAN.md).
+
+## Interactive Menu System
+
+AutoClaude includes a comprehensive interactive menu for managing projects:
+
+- **Project Management**: Create new projects or open existing ones
+- **Workspace Organization**: Maintain multiple projects in organized directories
+- **Session Control**: Launch autonomous development, resume sessions, or start interactive mode
+- **Git Integration**: Commit, push, and manage branches directly from the menu
+- **Container Management**: Start/stop sandboxes, view logs, and manage images
+- **Configuration**: Adjust settings, environment variables, and runtime preferences
+
+Access the menu anytime with the `autoclaude` command after installation.
 
 ## Architecture
 
